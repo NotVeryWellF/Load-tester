@@ -1,0 +1,13 @@
+FROM python:3.8-alpine
+
+COPY requirements.txt /tmp/
+
+RUN pip3 install --no-cache-dir -r /tmp/requirements.txt
+
+ADD app.py app/app.py
+ADD templates app/templates/
+
+# tell the port number the container should expose
+EXPOSE 5000
+
+CMD ["python3", "app/app.py"]

@@ -1,0 +1,91 @@
+version: '3'
+volumes: 
+  grafana_data: {}
+
+networks: 
+  load_test: 
+    external: true
+  backend:
+
+services:
+  web:
+    image: mexator/project
+    build: ./web
+    ports:
+      - "80:5000"
+    environment:
+      FLASK_ENV: development
+    networks:
+      - backend
+      - load_test 
+  redis:
+    image: "redis:alpine"
+    networks:
+      - backend
+  prometheus:
+    image: mexator/project1_prom
+    build: ./prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+    ports:
+      - 9090:9090
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+    networks:
+      - backend
+    links:
+        - cadvisor:cadvisor
+    depends_on:
+        - cadvisor
+    restart: always
+
+  cadvisor:
+    image: gcr.io/google-containers/cadvisor:latest
+    hostname: '{{.Node.ID}}'
+    volumes:
+        - /:/rootfs:ro
+        - /var/run:/var/run:ro
+        - /sys:/sys:ro
+        - /var/lib/docker/:/var/lib/docker:ro
+    ports:
+        - 8080:8080
+    networks:
+      - backend
+    restart: always
+    deploy:
+        mode: global
+
+  nodeexporter:
+    image: prom/node-exporter
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc)($$|/)'
+    restart: unless-stopped
+    expose:
+      - 9100
+    deploy:
+      mode: global
+    networks:
+      - backend
+    labels:
+      org.label-schema.group: "monitoring"
+
+  grafana:
+    image: grafana/grafana
+    depends_on:
+        - prometheus
+    ports:
+        - 3000:3000
+    networks:
+      - backend
+    volumes:
+      - grafana_data:/var/lib/grafana
+    restart: always
